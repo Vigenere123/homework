@@ -31,10 +31,8 @@ def main():
     policy_fn = load_policy.load_policy(args.expert_policy_file)
     print('loaded and built')
 
-    with tf.Session() as sess:
+    with tf.Session():
         tf_util.initialize()
-        init = tf.global_variables_initializer()
-        sess.run(init)
 
         import gym
         env = gym.make(args.envname)
@@ -69,28 +67,58 @@ def main():
 
         expert_data = {'observations': np.array(observations),
                        'actions': np.array(actions)}
-        print('observations shape:{}'.format(expert_data['observations'].shape))
-        print('actions shape:{}'.format(expert_data['actions'].shape))
+        obs_shape = expert_data['observations'].shape
+        actions_shape = expert_data['actions'].shape
+        print('observations shape:{}'.format(obs_shape))
+        print('actions shape:{}'.format(actions_shape))
 
         # define placeholders
-        X = tf.placeholder(shape=expert_data['observations'].shape, dtype=tf.float32)
-        Y = tf.placeholder(shape=expert_data['actions'].shape, dtype=tf.float32)
+        X = tf.placeholder(shape=(None, expert_data['observations'].shape[1]), dtype=tf.float32)
+        Y = tf.placeholder(shape=(None, expert_data['actions'].shape[-1]), dtype=tf.float32)
 
         # define layers
-        l1 = tf.layers.dense(X, 20, activation=tf.nn.relu)
-        l2 = tf.layers.dense(l1, 20, activation=tf.nn.relu)
-        l3 = tf.layers.dense(l2, 20, activation=tf.nn.relu)
-        output = tf.layers.dense(l3, 3, activation=None)
-        output = tf.reshape(output, expert_data['actions'].shape)
+        l1 = tf.layers.dense(X, 60, activation=tf.nn.relu)
+        l2 = tf.layers.dense(l1, 60, activation=tf.nn.relu)
+        l3 = tf.layers.dense(l2, 60, activation=tf.nn.relu)
+        output = tf.layers.dense(l3, Y.shape[-1], activation=None)
 
         cost = tf.reduce_mean(tf.losses.mean_squared_error(labels=Y, predictions=output))
         optimizer = tf.train.AdamOptimizer(0.01).minimize(cost)
     
-        for step in range(100):
-            _, val = sess.run([optimizer, cost], feed_dict = {X: expert_data['observations'], Y: expert_data['actions']})
+        tf_util.initialize()
+        for step in range(10000):
+            _, val = tf_util.get_session().run([optimizer, cost], feed_dict = {X: expert_data['observations'], Y: np.reshape(expert_data['actions'], (actions_shape[0], actions_shape[-1]))})
 
-            if step % 5 == 0:
+            if step % 100 == 0:
                 print("step: {}, value: {}".format(step, val))
+        
+        # Test out our trained network on the same environment and report results
+        returns = []
+        observations = []
+        actions = []
+        for i in range(args.num_rollouts):
+            print('iter', i)
+            obs = env.reset()
+            print(obs.shape)
+            done = False
+            totalr = 0.
+            steps = 0
+            while not done:
+                action = tf_util.get_session().run(output, feed_dict = {X: obs[None,:]})
+                observations.append(obs)
+                actions.append(action)
+                obs, r, done, _ = env.step(action)
+                totalr += r
+                steps += 1
+                if args.render:
+                    env.render()
+                if steps % 100 == 0: print("%i/%i"%(steps, max_steps))
+                if steps >= max_steps:
+                    break
+            returns.append(totalr)
 
+        print('returns', returns)
+        print('mean return', np.mean(returns))
+        print('std of return', np.std(returns))
 if __name__ == '__main__':
     main()
