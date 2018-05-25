@@ -31,8 +31,10 @@ def main():
     policy_fn = load_policy.load_policy(args.expert_policy_file)
     print('loaded and built')
 
-    with tf.Session():
+    with tf.Session() as sess:
         tf_util.initialize()
+        init = tf.global_variables_initializer()
+        sess.run(init)
 
         import gym
         env = gym.make(args.envname)
@@ -67,6 +69,28 @@ def main():
 
         expert_data = {'observations': np.array(observations),
                        'actions': np.array(actions)}
+        print('observations shape:{}'.format(expert_data['observations'].shape))
+        print('actions shape:{}'.format(expert_data['actions'].shape))
+
+        # define placeholders
+        X = tf.placeholder(shape=expert_data['observations'].shape, dtype=tf.float32)
+        Y = tf.placeholder(shape=expert_data['actions'].shape, dtype=tf.float32)
+
+        # define layers
+        l1 = tf.layers.dense(X, 20, activation=tf.nn.relu)
+        l2 = tf.layers.dense(l1, 20, activation=tf.nn.relu)
+        l3 = tf.layers.dense(l2, 20, activation=tf.nn.relu)
+        output = tf.layers.dense(l3, 3, activation=None)
+        output = tf.reshape(output, expert_data['actions'].shape)
+
+        cost = tf.reduce_mean(tf.losses.mean_squared_error(labels=Y, predictions=output))
+        optimizer = tf.train.AdamOptimizer(0.01).minimize(cost)
+    
+        for step in range(100):
+            _, val = sess.run([optimizer, cost], feed_dict = {X: expert_data['observations'], Y: expert_data['actions']})
+
+            if step % 5 == 0:
+                print("step: {}, value: {}".format(step, val))
 
 if __name__ == '__main__':
     main()
