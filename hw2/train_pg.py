@@ -34,8 +34,11 @@ def build_mlp(
     #========================================================================================#
 
     with tf.variable_scope(scope):
-        # YOUR_CODE_HERE
-        pass
+        input = tf.layers.dense(input_placeholder, size, activation=activation)
+        layers = [input]
+        for i in range(1, n_layers):
+            layers.append(tf.layers.dense(layers[-1], size, activation=activation))
+        return tf.layers.dense(layers[-1], output_size, activation=output_activation)
 
 def pathlength(path):
     return len(path["reward"])
@@ -123,7 +126,7 @@ def train_PG(exp_name='',
         sy_ac_na = tf.placeholder(shape=[None, ac_dim], name="ac", dtype=tf.float32) 
 
     # Define a placeholder for advantages
-    sy_adv_n = TODO
+    # sy_adv_n = TODO
 
 
     #========================================================================================#
@@ -167,16 +170,16 @@ def train_PG(exp_name='',
 
     if discrete:
         # YOUR_CODE_HERE
-        sy_logits_na = TODO
-        sy_sampled_ac = TODO # Hint: Use the tf.multinomial op
-        sy_logprob_n = TODO
+        sy_logits_na = build_mlp(sy_ob_no, ac_dim, "", n_layers=3, size=64, activation=tf.tanh, output_activation=tf.softmax)
+        sy_sampled_ac = tf.multinomial(sy_logits_na, None) # Hint: Use the tf.multinomial op
+        sy_logprob_n = tf.log(tf.multiply(sy_ac_na, sy_sampled_ac))
 
     else:
         # YOUR_CODE_HERE
-        sy_mean = TODO
-        sy_logstd = TODO # logstd should just be a trainable variable, not a network output.
-        sy_sampled_ac = TODO
-        sy_logprob_n = TODO  # Hint: Use the log probability under a multivariate gaussian. 
+        # sy_mean = TODO
+        # sy_logstd = TODO # logstd should just be a trainable variable, not a network output.
+        # sy_sampled_ac = TODO
+        # sy_logprob_n = TODO  # Hint: Use the log probability under a multivariate gaussian. 
 
 
 
