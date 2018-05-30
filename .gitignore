@@ -6,6 +6,9 @@ __pycache__/
 # C extensions
 *.so
 
+# Auto-generated log files for HW2
+hw2/data/
+
 # Distribution / packaging
 .Python
 env/
